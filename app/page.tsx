@@ -100,7 +100,7 @@ export default function Home() {
           </div>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
             Generate viral Instagram-style subtitles for your talking head videos.
-            <span className="text-orange-400"> 100% Free</span> • No watermarks • Instant results
+            <span className="text-orange-400"> 100% Free</span> • English Only • No watermarks
           </p>
         </div>
 

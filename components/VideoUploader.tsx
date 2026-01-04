@@ -130,9 +130,9 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
                   MP4, MOV, WebM
                 </span>
                 <span>•</span>
-                <span>Max 100MB</span>
+                <span>English Only</span>
                 <span>•</span>
-                <span>Up to 3 min</span>
+                <span>Max 100MB</span>
               </div>
             </div>
           </div>
