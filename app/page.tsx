@@ -17,7 +17,7 @@ export default function Home() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File, style: string) => {
     setState("uploading");
     setProgress(0);
     setStatusMessage("Uploading video...");
@@ -26,6 +26,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("video", file);
+      formData.append("style", style);
 
       setState("processing");
       setProgress(20);

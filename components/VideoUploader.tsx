@@ -2,9 +2,10 @@
 
 import { useState, useRef, DragEvent, ChangeEvent } from "react";
 import { Upload, FileVideo, AlertCircle } from "lucide-react";
+import StyleSelector from "./StyleSelector";
 
 interface VideoUploaderProps {
-  onUpload: (file: File) => void;
+  onUpload: (file: File, style: string) => void;
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -15,6 +16,7 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState("hormozi");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
@@ -75,7 +77,7 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
 
   const handleSubmit = () => {
     if (selectedFile) {
-      onUpload(selectedFile);
+      onUpload(selectedFile, selectedStyle);
     }
   };
 
@@ -151,7 +153,7 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
             <video
               src={preview}
               controls
-              className="w-full max-h-[400px] object-contain"
+              className="w-full max-h-[300px] object-contain"
             />
           </div>
 
@@ -178,6 +180,12 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
             </button>
           </div>
 
+          {/* Style Selector */}
+          <StyleSelector
+            selectedStyle={selectedStyle}
+            onSelectStyle={setSelectedStyle}
+          />
+
           {/* Submit Button */}
           <button
             onClick={handleSubmit}
@@ -191,4 +199,3 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
     </div>
   );
 }
-
