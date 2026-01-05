@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, DragEvent, ChangeEvent } from "react";
+import { useState, useRef, DragEvent, ChangeEvent, useEffect } from "react";
 import { Upload, FileVideo, AlertCircle } from "lucide-react";
 import StyleSelector from "./StyleSelector";
+import { saveVideo, getVideo, clearVideo } from "@/lib/videoStorage";
 
 interface VideoUploaderProps {
   onUpload: (file: File, style: string) => void;
@@ -17,7 +18,36 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("hormozi");
+  const [isLoading, setIsLoading] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Restore video from IndexedDB on mount
+  useEffect(() => {
+    const restoreVideo = async () => {
+      try {
+        const stored = await getVideo();
+        if (stored) {
+          setSelectedFile(stored.file);
+          setSelectedStyle(stored.style);
+          const url = URL.createObjectURL(stored.file);
+          setPreview(url);
+        }
+      } catch (err) {
+        console.error("Failed to restore video:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    restoreVideo();
+  }, []);
+
+  // Save to IndexedDB when file or style changes
+  useEffect(() => {
+    if (selectedFile) {
+      saveVideo(selectedFile, selectedStyle);
+    }
+  }, [selectedFile, selectedStyle]);
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -75,16 +105,19 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
     inputRef.current?.click();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (selectedFile) {
+      // Clear storage before processing
+      await clearVideo();
       onUpload(selectedFile, selectedStyle);
     }
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (preview) {
       URL.revokeObjectURL(preview);
     }
+    await clearVideo();
     setPreview(null);
     setSelectedFile(null);
     setError(null);
@@ -92,6 +125,15 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
       inputRef.current.value = "";
     }
   };
+
+  // Show loading state while checking IndexedDB
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -148,6 +190,15 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
         </>
       ) : (
         <div className="space-y-6">
+          {/* Restored indicator */}
+          {selectedFile && (
+            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-center">
+              <p className="text-green-400 text-sm">
+                ✓ Your video was restored from your previous session
+              </p>
+            </div>
+          )}
+
           {/* Video Preview */}
           <div className="relative rounded-2xl overflow-hidden bg-black/50">
             <video
