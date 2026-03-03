@@ -4,6 +4,7 @@ import { useState } from "react";
 import VideoUploader from "@/components/VideoUploader";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import VideoPreview from "@/components/VideoPreview";
+import { processVideo, processVideos } from "@/lib/api";
 import { Sparkles, Zap, Film } from "lucide-react";
 
 type AppState = "idle" | "uploading" | "processing" | "complete" | "error";
@@ -13,26 +14,23 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [isZipResult, setIsZipResult] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
 
-  const handleUpload = async (file: File, style: string) => {
+  const handleUpload = async (files: File[], style: string) => {
     setState("uploading");
     setProgress(0);
     setStatusMessage("Uploading video...");
     setError(null);
+    setIsZipResult(files.length > 1);
 
     try {
-      const formData = new FormData();
-      formData.append("video", file);
-      formData.append("style", style);
-
       setState("processing");
       setProgress(20);
       setStatusMessage("Extracting audio...");
 
-      // Simulate progress updates (actual processing happens server-side)
       const progressInterval = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 90) {
@@ -51,22 +49,14 @@ export default function Home() {
         });
       }, 2000);
 
-      const response = await fetch(`${API_URL}/api/process`, {
-        method: "POST",
-        body: formData,
-      });
+      const blob =
+        files.length === 1
+          ? await processVideo(files[0], style, API_URL)
+          : await processVideos(files, style, API_URL);
 
       clearInterval(progressInterval);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Processing failed");
-      }
-
-      // Get the video blob
-      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-
       setProgress(100);
       setStatusMessage("Complete!");
       setResultUrl(url);
@@ -85,6 +75,7 @@ export default function Home() {
     setProgress(0);
     setStatusMessage("");
     setResultUrl(null);
+    setIsZipResult(false);
     setError(null);
   };
 
@@ -137,7 +128,11 @@ export default function Home() {
           )}
 
           {state === "complete" && resultUrl && (
-            <VideoPreview videoUrl={resultUrl} onReset={handleReset} />
+            <VideoPreview
+              videoUrl={resultUrl}
+              onReset={handleReset}
+              isZip={isZipResult}
+            />
           )}
 
           {state === "error" && (
