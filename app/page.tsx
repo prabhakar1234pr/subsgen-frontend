@@ -2,136 +2,158 @@
 
 import { useState } from "react";
 import VideoUploader from "@/components/VideoUploader";
+import ReelPipelineUploader from "@/components/ReelPipelineUploader";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import VideoPreview from "@/components/VideoPreview";
-import { processVideo, processVideos } from "@/lib/api";
-import { Sparkles, Zap, Film } from "lucide-react";
+import { processVideo, processVideos, processReelPipeline } from "@/lib/api";
+import { Film, Zap, Brain } from "lucide-react";
 
-type AppState = "idle" | "uploading" | "processing" | "complete" | "error";
+type AppState = "idle" | "processing" | "complete" | "error";
+type Mode = "subtitles" | "reel";
+
+const REEL_STEPS = [
+  "Save uploads",
+  "Transcribe clips (Whisper v3)",
+  "Analyze visuals (LLaMA 4 Scout)",
+  "Brain: narrative + edit plan",
+  "Brain: caption + hashtags",
+  "Find & download music",
+  "Precise trim each clip",
+  "Reframe to 9:16",
+  "Stitch with crossfades",
+  "Mix music",
+  "Burn subtitles",
+];
+
+type Caption = { hook: string; body: string; cta: string; hashtags: string[] };
 
 export default function Home() {
-  const [state, setState] = useState<AppState>("idle");
-  const [progress, setProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [isZipResult, setIsZipResult] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode]                 = useState<Mode>("reel");
+  const [state, setState]               = useState<AppState>("idle");
+  const [progress, setProgress]         = useState(0);
+  const [statusMsg, setStatusMsg]       = useState("");
+  const [resultUrl, setResultUrl]       = useState<string | null>(null);
+  const [isZip, setIsZip]               = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [caption, setCaption]           = useState<Caption | null>(null);
+  const [subtitleStyle, setSubtitleStyle] = useState<string>("");
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
 
-  const handleUpload = async (files: File[], style: string) => {
-    setState("uploading");
-    setProgress(0);
-    setStatusMessage("Uploading video...");
-    setError(null);
-    setIsZipResult(files.length > 1);
+  const handleSubtitlesUpload = async (files: File[], style: string) => {
+    setState("processing"); setProgress(10); setStatusMsg("Uploading..."); setError(null);
+    setIsZip(files.length > 1); setCaption(null);
+    const steps = ["Uploading...", "Extracting audio...", "Transcribing...", "Generating subs...", "Burning subs..."];
+    let si = 0;
+    const tick = setInterval(() => {
+      setProgress(p => p >= 90 ? (clearInterval(tick), p) : p + 5);
+      setStatusMsg(steps[Math.min(si++, steps.length - 1)]);
+    }, 2000);
+    try {
+      const blob = files.length === 1
+        ? await processVideo(files[0], style, API_URL)
+        : await processVideos(files, style, API_URL);
+      clearInterval(tick);
+      setResultUrl(URL.createObjectURL(blob));
+      setProgress(100); setStatusMsg("Done!"); setState("complete");
+    } catch (e) {
+      clearInterval(tick);
+      setError(e instanceof Error ? e.message : "Error"); setState("error");
+    }
+  };
+
+  const handleReelPipeline = async (files: File[]) => {
+    setState("processing"); setProgress(3); setError(null); setIsZip(false);
+    setCaption(null); setSubtitleStyle("");
+
+    const stepMsgs = [
+      { at: 3,  msg: "Saving uploads..." },
+      { at: 10, msg: "Transcribing clips with Whisper Large v3..." },
+      { at: 24, msg: "Analyzing visuals with Llama 4 Scout..." },
+      { at: 36, msg: "Brain planning narrative + edit order..." },
+      { at: 46, msg: "Brain writing caption + hashtags..." },
+      { at: 54, msg: "Finding & downloading music..." },
+      { at: 62, msg: "Precisely trimming each clip..." },
+      { at: 70, msg: "Reframing clips to 9:16..." },
+      { at: 77, msg: "Stitching with crossfades..." },
+      { at: 84, msg: "Mixing music..." },
+      { at: 91, msg: "Burning subtitles..." },
+    ];
+    let si = 0;
+    const tick = setInterval(() => {
+      if (si < stepMsgs.length) { setProgress(stepMsgs[si].at); setStatusMsg(stepMsgs[si].msg); si++; }
+    }, 5000);
 
     try {
-      setState("processing");
-      setProgress(20);
-      setStatusMessage("Extracting audio...");
-
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          const messages = [
-            "Extracting audio...",
-            "Transcribing speech...",
-            "Generating subtitles...",
-            "Burning subtitles...",
-          ];
-          const idx = Math.floor((prev - 20) / 17.5);
-          setStatusMessage(messages[Math.min(idx, messages.length - 1)]);
-          return prev + 5;
-        });
-      }, 2000);
-
-      const blob =
-        files.length === 1
-          ? await processVideo(files[0], style, API_URL)
-          : await processVideos(files, style, API_URL);
-
-      clearInterval(progressInterval);
-
-      const url = URL.createObjectURL(blob);
-      setProgress(100);
-      setStatusMessage("Complete!");
-      setResultUrl(url);
-      setState("complete");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setState("error");
+      const result = await processReelPipeline(files, API_URL);
+      clearInterval(tick);
+      setResultUrl(URL.createObjectURL(result.blob));
+      setCaption(result.caption);
+      setSubtitleStyle(result.subtitleStyle);
+      setProgress(100); setStatusMsg("AI reel ready! 🎬"); setState("complete");
+    } catch (e) {
+      clearInterval(tick);
+      setError(e instanceof Error ? e.message : "Pipeline failed"); setState("error");
     }
   };
 
   const handleReset = () => {
-    if (resultUrl) {
-      URL.revokeObjectURL(resultUrl);
-    }
-    setState("idle");
-    setProgress(0);
-    setStatusMessage("");
-    setResultUrl(null);
-    setIsZipResult(false);
-    setError(null);
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    setState("idle"); setProgress(0); setStatusMsg("");
+    setResultUrl(null); setIsZip(false); setError(null);
+    setCaption(null); setSubtitleStyle("");
   };
 
   return (
     <main className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
+
+        <div className="text-center mb-10">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Film className="w-10 h-10 text-orange-500" />
-            <h1 className="text-4xl sm:text-5xl font-bold gradient-text">
-              SubsGen
-            </h1>
+            <h1 className="text-4xl sm:text-5xl font-bold gradient-text">SubsGen</h1>
           </div>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-            Generate viral Instagram-style subtitles for your talking head videos.
-            <span className="text-orange-400"> 100% Free</span> • English Only • No watermarks
+            Add viral subtitles — or let AI build a complete reel from raw clips.
           </p>
         </div>
 
-        {/* Features */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
-          <div className="glass-card rounded-2xl p-6 text-center">
-            <Sparkles className="w-8 h-8 text-pink-500 mx-auto mb-3" />
-            <h3 className="font-semibold text-white mb-1">Word Highlighting</h3>
-            <p className="text-sm text-gray-500">Hormozi-style word-by-word pop</p>
+        {state === "idle" && (
+          <div className="flex rounded-2xl bg-white/5 p-1 mb-8 border border-white/10">
+            <button onClick={() => setMode("subtitles")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
+                font-semibold transition-all text-sm sm:text-base
+                ${mode === "subtitles" ? "bg-orange-500 text-white shadow-lg" : "text-gray-400 hover:text-white"}`}>
+              <Zap className="w-4 h-4" /> Subtitles Only
+            </button>
+            <button onClick={() => setMode("reel")}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl
+                font-semibold transition-all text-sm sm:text-base
+                ${mode === "reel"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"}`}>
+              <Brain className="w-4 h-4" /> AI Reel Pipeline ✨
+            </button>
           </div>
-          <div className="glass-card rounded-2xl p-6 text-center">
-            <Zap className="w-8 h-8 text-orange-500 mx-auto mb-3" />
-            <h3 className="font-semibold text-white mb-1">AI Transcription</h3>
-            <p className="text-sm text-gray-500">Powered by OpenAI Whisper</p>
-          </div>
-          <div className="glass-card rounded-2xl p-6 text-center">
-            <Film className="w-8 h-8 text-violet-500 mx-auto mb-3" />
-            <h3 className="font-semibold text-white mb-1">Burned-In Subs</h3>
-            <p className="text-sm text-gray-500">Ready to post, no editing needed</p>
-          </div>
-        </div>
+        )}
 
-        {/* Main Content */}
         <div className="glass-card rounded-3xl p-8 sm:p-12">
-          {state === "idle" && <VideoUploader onUpload={handleUpload} />}
+          {state === "idle" && mode === "subtitles" && <VideoUploader onUpload={handleSubtitlesUpload} />}
+          {state === "idle" && mode === "reel"      && <ReelPipelineUploader onUpload={handleReelPipeline} />}
 
-          {(state === "uploading" || state === "processing") && (
+          {state === "processing" && (
             <ProcessingStatus
-              progress={progress}
-              message={statusMessage}
-              onCancel={handleReset}
+              progress={progress} message={statusMsg} onCancel={handleReset}
+              steps={mode === "reel" ? REEL_STEPS : undefined}
             />
           )}
 
           {state === "complete" && resultUrl && (
             <VideoPreview
-              videoUrl={resultUrl}
-              onReset={handleReset}
-              isZip={isZipResult}
+              videoUrl={resultUrl} onReset={handleReset} isZip={isZip}
+              downloadName={mode === "reel" ? "reel.mp4" : undefined}
+              caption={caption}
+              subtitleStyle={subtitleStyle}
             />
           )}
 
@@ -140,26 +162,19 @@ export default function Home() {
               <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">❌</span>
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">
-                Something went wrong
-              </h3>
+              <h3 className="text-xl font-semibold text-white mb-2">Something went wrong</h3>
               <p className="text-gray-400 mb-6">{error}</p>
-              <button
-                onClick={handleReset}
-                className="btn-primary px-8 py-3 rounded-full font-semibold text-white"
-              >
+              <button onClick={handleReset} className="btn-primary px-8 py-3 rounded-full font-semibold text-white">
                 Try Again
               </button>
             </div>
           )}
         </div>
 
-        {/* Footer */}
         <p className="text-center text-gray-600 text-sm mt-8">
-          Built with Whisper AI + FFmpeg • Completely free, no sign-up required
+          Whisper v3 + Llama 4 Scout + Llama 3.3 70B (Groq) + Pixabay + FFmpeg
         </p>
       </div>
     </main>
   );
 }
-
