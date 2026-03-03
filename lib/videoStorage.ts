@@ -78,8 +78,7 @@ export async function getVideo(): Promise<{ file: File; style: string } | null> 
             resolve({ file: data.file, style: data.style });
           } else {
             // Too old, clear it
-            clearVideo();
-            resolve(null);
+            clearVideo().then(() => resolve(null));
           }
         } else {
           resolve(null);

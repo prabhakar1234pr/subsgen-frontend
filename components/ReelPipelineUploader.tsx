@@ -8,6 +8,7 @@ interface ReelPipelineUploaderProps {
 }
 
 const MAX_SIZE_MB = 100;
+const MAX_TOTAL_MB = 500;
 const ALLOWED = ["video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"];
 
 interface FileItem { file: File; preview: string; }
@@ -18,7 +19,10 @@ export default function ReelPipelineUploader({ onUpload }: ReelPipelineUploaderP
   const [error, setError]           = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const validate = (newFiles: File[]): string | null => {
+  const validate = (newFiles: File[], existingFiles: FileItem[] = []): string | null => {
+    const allFiles = [...existingFiles.map(f => f.file), ...newFiles];
+    const totalMB = allFiles.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024);
+    if (totalMB > MAX_TOTAL_MB) return `Total size must be under ${MAX_TOTAL_MB}MB (current: ${totalMB.toFixed(1)}MB)`;
     for (const f of newFiles) {
       if (!ALLOWED.includes(f.type)) return `Invalid type: ${f.name}`;
       if (f.size > MAX_SIZE_MB * 1024 * 1024) return `Too large: ${f.name} (max ${MAX_SIZE_MB}MB)`;
@@ -28,7 +32,7 @@ export default function ReelPipelineUploader({ onUpload }: ReelPipelineUploaderP
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
-    const err = validate(arr);
+    const err = validate(arr, files);
     if (err) { setError(err); return; }
     setError(null);
     setFiles(prev => [...prev, ...arr.map(f => ({ file: f, preview: URL.createObjectURL(f) }))]);
@@ -132,7 +136,7 @@ export default function ReelPipelineUploader({ onUpload }: ReelPipelineUploaderP
         {[
           { emoji: "👁️", label: "Analyzes every clip", sub: "LLaVA vision model reads mood & energy" },
           { emoji: "🎬", label: "Plans the edit", sub: "Llama decides order, pacing & style" },
-          { emoji: "🎵", label: "Finds real music", sub: "Downloads from Pixabay (royalty-free)" },
+          { emoji: "🎵", label: "Finds real music", sub: "Downloads from Internet Archive (CC0)" },
           { emoji: "✂️", label: "Cuts the reel", sub: "FFmpeg trims silence, reframes, stitches" },
         ].map(f => (
           <div key={f.label} className="bg-white/5 rounded-xl p-4 border border-white/5">

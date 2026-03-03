@@ -172,7 +172,7 @@ export default function Home() {
         </div>
 
         <p className="text-center text-gray-600 text-sm mt-8">
-          Whisper v3 + Llama 4 Scout + Llama 3.3 70B (Groq) + Pixabay + FFmpeg
+          Whisper v3 + Llama 4 Scout + Llama 3.3 70B (Groq) + Internet Archive + FFmpeg
         </p>
       </div>
     </main>

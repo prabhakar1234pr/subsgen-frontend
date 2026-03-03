@@ -18,8 +18,11 @@ export default function VideoPreview({ videoUrl, onReset, isZip, downloadName, c
   const filename = downloadName ?? (isZip ? "subtitled_videos.zip" : "subtitled_video.mp4");
   const isReel   = filename === "reel.mp4";
 
+  const hashtagsStr = caption?.hashtags
+    ? (Array.isArray(caption.hashtags) ? caption.hashtags.join(" ") : String(caption.hashtags))
+    : "";
   const fullCaption = caption
-    ? `${caption.hook}\n\n${caption.body}\n\n${caption.cta}\n\n${caption.hashtags.join(" ")}`
+    ? `${caption.hook}\n\n${caption.body}\n\n${caption.cta}\n\n${hashtagsStr}`.trim()
     : null;
 
   const copyCaption = async () => {
@@ -75,7 +78,7 @@ export default function VideoPreview({ videoUrl, onReset, isZip, downloadName, c
             <p className="text-white font-semibold">{caption.hook}</p>
             <p className="text-gray-300 whitespace-pre-line">{caption.body}</p>
             <p className="text-orange-400">{caption.cta}</p>
-            <p className="text-purple-400 text-xs">{caption.hashtags.join(" ")}</p>
+            <p className="text-purple-400 text-xs">{hashtagsStr}</p>
           </div>
         </div>
       )}
