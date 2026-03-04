@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import VideoUploader from "@/components/VideoUploader";
 import ReelPipelineUploader from "@/components/ReelPipelineUploader";
 import ProcessingStatus from "@/components/ProcessingStatus";
@@ -38,31 +38,58 @@ export default function Home() {
   const [caption, setCaption]           = useState<Caption | null>(null);
   const [subtitleStyle, setSubtitleStyle] = useState<string>("");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
+  // Empty/undefined = same-origin (proxy works on Vercel + local dev). Set explicit URL only if needed.
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, []);
 
   const handleSubtitlesUpload = async (files: File[], style: string) => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     setState("processing"); setProgress(10); setStatusMsg("Uploading..."); setError(null);
     setIsZip(files.length > 1); setCaption(null);
     const steps = ["Uploading...", "Extracting audio...", "Transcribing...", "Generating subs...", "Burning subs..."];
     let si = 0;
     const tick = setInterval(() => {
-      setProgress(p => p >= 90 ? (clearInterval(tick), p) : p + 5);
+      setProgress(p => {
+        if (p >= 90) {
+          if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+          return p;
+        }
+        return p + 5;
+      });
       setStatusMsg(steps[Math.min(si++, steps.length - 1)]);
     }, 2000);
+    intervalRef.current = tick;
+
     try {
       const blob = files.length === 1
-        ? await processVideo(files[0], style, API_URL)
-        : await processVideos(files, style, API_URL);
-      clearInterval(tick);
+        ? await processVideo(files[0], style, API_URL, signal)
+        : await processVideos(files, style, API_URL, signal);
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
       setResultUrl(URL.createObjectURL(blob));
       setProgress(100); setStatusMsg("Done!"); setState("complete");
     } catch (e) {
-      clearInterval(tick);
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if ((e as Error).name === "AbortError") return;
       setError(e instanceof Error ? e.message : "Error"); setState("error");
     }
   };
 
   const handleReelPipeline = async (files: File[]) => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     setState("processing"); setProgress(3); setError(null); setIsZip(false);
     setCaption(null); setSubtitleStyle("");
 
@@ -83,21 +110,25 @@ export default function Home() {
     const tick = setInterval(() => {
       if (si < stepMsgs.length) { setProgress(stepMsgs[si].at); setStatusMsg(stepMsgs[si].msg); si++; }
     }, 5000);
+    intervalRef.current = tick;
 
     try {
-      const result = await processReelPipeline(files, API_URL);
-      clearInterval(tick);
+      const result = await processReelPipeline(files, API_URL, signal);
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
       setResultUrl(URL.createObjectURL(result.blob));
       setCaption(result.caption);
       setSubtitleStyle(result.subtitleStyle);
       setProgress(100); setStatusMsg("AI reel ready! 🎬"); setState("complete");
     } catch (e) {
-      clearInterval(tick);
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if ((e as Error).name === "AbortError") return;
       setError(e instanceof Error ? e.message : "Pipeline failed"); setState("error");
     }
   };
 
   const handleReset = () => {
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     if (resultUrl) URL.revokeObjectURL(resultUrl);
     setState("idle"); setProgress(0); setStatusMsg("");
     setResultUrl(null); setIsZip(false); setError(null);
