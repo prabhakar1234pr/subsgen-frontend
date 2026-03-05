@@ -54,6 +54,15 @@ export default function ReelPipelineUploader({ onUpload }: ReelPipelineUploaderP
     });
   };
 
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await Promise.resolve(onUpload(files.map(f => f.file)));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
 
