@@ -54,6 +54,14 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
     // Don't persist when multiple files - restore would be incomplete
   }, [selectedFiles, selectedStyle]);
 
+  const filesRef = useRef(selectedFiles);
+  filesRef.current = selectedFiles;
+  useEffect(() => {
+    return () => {
+      filesRef.current.forEach((f) => URL.revokeObjectURL(f.preview));
+    };
+  }, []);
+
   const validateFiles = (files: File[]): string | null => {
     const totalMB = files.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024);
     if (totalMB > MAX_TOTAL_MB) {
@@ -169,7 +177,6 @@ export default function VideoUploader({ onUpload }: VideoUploaderProps) {
       setIsSubmitting(false);
       return;
     }
-    setIsSubmitting(false);
 
     await clearVideo();
     onUpload(selectedFiles.map((f) => f.file), selectedStyle);

@@ -43,7 +43,13 @@ export async function saveVideo(file: File, style: string): Promise<void> {
       timestamp: Date.now(),
     };
 
-    store.put(videoData);
+    try {
+      store.put(videoData);
+    } catch {
+      // File may not be structured-cloneable in some browsers
+      db.close();
+      return;
+    }
 
     return new Promise((resolve, reject) => {
       transaction.oncomplete = () => {

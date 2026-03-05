@@ -25,7 +25,8 @@ export async function processVideos(files: File[], style: string, apiUrl = DEFAU
 }
 
 export interface ReelResult {
-  blob: Blob;
+  /** URL to video (GCS signed URL or blob URL). Use for playback and download. */
+  videoUrl: string;
   caption: { hook: string; body: string; cta: string; hashtags: string[] } | null;
   subtitleStyle: string;
 }
@@ -36,13 +37,28 @@ export async function processReelPipeline(files: File[], apiUrl = DEFAULT_API_UR
   const r = await fetch(`${apiUrl}/api/reel-pipeline`, { method: "POST", body: fd, signal });
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(parseErrorDetail(e.detail, "Pipeline failed")); }
 
-  // Extract caption from response header
+  const contentType = r.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json")) {
+    // GCS: backend returns JSON with download_url
+    const data = await r.json();
+    return {
+      videoUrl: data.download_url,
+      caption: data.caption || null,
+      subtitleStyle: data.subtitle_style || "hormozi",
+    };
+  }
+
+  // Local dev: blob + X-Caption header
+  const blob = await r.blob();
   let caption = null;
   const captionHeader = r.headers.get("X-Caption");
   if (captionHeader) {
     try { caption = JSON.parse(captionHeader); } catch {}
   }
   const subtitleStyle = r.headers.get("X-Subtitle-Style") || "hormozi";
-
-  return { blob: await r.blob(), caption, subtitleStyle };
+  return {
+    videoUrl: URL.createObjectURL(blob),
+    caption,
+    subtitleStyle,
+  };
 }

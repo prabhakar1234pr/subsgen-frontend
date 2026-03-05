@@ -33,9 +33,16 @@ export default function VideoPreview({ videoUrl, onReset, isZip, downloadName, c
   };
 
   const handleDownload = () => {
-    const a = document.createElement("a");
-    a.href = videoUrl; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    if (videoUrl.startsWith("blob:") || videoUrl.startsWith("/")) {
+      const a = document.createElement("a");
+      a.href = videoUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      window.open(videoUrl, "_blank");
+    }
   };
 
   return (

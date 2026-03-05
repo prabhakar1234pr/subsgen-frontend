@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, DragEvent } from "react";
+import { useState, useRef, DragEvent, useEffect } from "react";
 import { Upload, FileVideo, X, ChevronUp, ChevronDown, Sparkles, Brain } from "lucide-react";
 
 interface ReelPipelineUploaderProps {
@@ -9,6 +9,7 @@ interface ReelPipelineUploaderProps {
 
 const MAX_SIZE_MB = 100;
 const MAX_TOTAL_MB = 500;
+const MAX_TOTAL_DURATION_SEC = 300; // 5 minutes
 const ALLOWED = ["video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"];
 
 interface FileItem { file: File; preview: string; }
@@ -17,7 +18,10 @@ export default function ReelPipelineUploader({ onUpload }: ReelPipelineUploaderP
   const [files, setFiles]           = useState<FileItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
   const validate = (newFiles: File[], existingFiles: FileItem[] = []): string | null => {
     const allFiles = [...existingFiles.map(f => f.file), ...newFiles];
@@ -149,13 +153,23 @@ export default function ReelPipelineUploader({ onUpload }: ReelPipelineUploaderP
 
       {/* Submit */}
       {files.length > 0 && (
-        <button onClick={() => onUpload(files.map(f => f.file))}
+        <button onClick={handleSubmit} disabled={isSubmitting}
           className="w-full py-4 rounded-xl font-bold text-white text-lg
                      flex items-center justify-center gap-3
                      bg-gradient-to-r from-purple-600 to-pink-600
-                     hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg">
-          <Sparkles className="w-5 h-5" />
-          Let AI Build My Reel ({files.length} clip{files.length > 1 ? "s" : ""})
+                     hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg
+                     disabled:opacity-50 disabled:cursor-not-allowed">
+          {isSubmitting ? (
+            <>
+              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Checking duration...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-5 h-5" />
+              Let AI Build My Reel ({files.length} clip{files.length > 1 ? "s" : ""})
+            </>
+          )}
         </button>
       )}
     </div>

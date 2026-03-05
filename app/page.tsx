@@ -115,7 +115,7 @@ export default function Home() {
     try {
       const result = await processReelPipeline(files, API_URL, signal);
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-      setResultUrl(URL.createObjectURL(result.blob));
+      setResultUrl(result.videoUrl);
       setCaption(result.caption);
       setSubtitleStyle(result.subtitleStyle);
       setProgress(100); setStatusMsg("AI reel ready! 🎬"); setState("complete");
@@ -129,7 +129,7 @@ export default function Home() {
   const handleReset = () => {
     if (abortControllerRef.current) abortControllerRef.current.abort();
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    if (resultUrl?.startsWith("blob:")) URL.revokeObjectURL(resultUrl);
     setState("idle"); setProgress(0); setStatusMsg("");
     setResultUrl(null); setIsZip(false); setError(null);
     setCaption(null); setSubtitleStyle("");
